@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  mlflow:
+    build:
+      context: ./mlflow
+    container_name: mlflow-server
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./mlflow/artifacts:/app/artifacts
+      - ./mlflow/mlruns:/app/mlruns
+    environment:
+      - MLFLOW_TRACKING_URI=http://0.0.0.0:5000
+    command: ["python", "mlflow_server.py"]
+
+  api:
+    build:
+      context: ./api
+    container_name: churn-api
+    ports:
+      - "8000:8000"
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+    depends_on:
+      - mlflow
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

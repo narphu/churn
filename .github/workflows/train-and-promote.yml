@@ -1,0 +1,33 @@
+# .github/workflows/train-and-promote.yml
+name: Train and Promote Churn Model
+
+on:
+  push:
+    paths:
+      - 'ml/**'
+      - 'data/**'
+      - 'Makefile'
+  workflow_dispatch:
+
+jobs:
+  train-and-promote:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Train model
+        run: |
+          make train
+
+      - name: Promote model if best
+        run: |
+          make promote
