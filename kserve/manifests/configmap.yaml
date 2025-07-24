@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: inferenceservice-config
+  namespace: default
+data:
+  INFERENCESERVICE_CONFIG: |
+    {
+      "sklearn": {
+        "v1": {
+          "image": "kserve/sklearnserver:v0.11.0",
+          "defaultImageVersion": true
+        }
+      }
+    }

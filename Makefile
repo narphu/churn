@@ -139,8 +139,17 @@ istio-install:
 	export PATH=$PWD/bin:$PATH
 	istioctl install --set profile=demo -y
 
+# Install Knative (CRDs + Core)
+knative-install:
+	kubectl apply -f https://github.com/knative/serving/releases/download/knative-v1.11.2/serving-crds.yaml
+	kubectl apply -f https://github.com/knative/serving/releases/download/knative-v1.11.2/serving-core.yaml
+	kubectl apply -f https://github.com/knative/net-kourier/releases/download/knative-v1.11.2/kourier.yaml
+	kubectl patch configmap/config-network -n knative-serving --type merge -p '{"data":{"ingress.class":"kourier.ingress.networking.knative.dev"}}'
+
+
 kserve-install: cert-manager-install
 	kubectl apply -f https://github.com/kserve/kserve/releases/download/v0.11.0/kserve.yaml
+	kubectl apply -f https://github.com/kserve/kserve/releases/download/v0.9.0/kserve-runtimes.yaml
 	kubectl wait --for=condition=Available deployment --all -n kserve --timeout=120s
 
 kserve-deploy:
@@ -150,11 +159,13 @@ kserve-deploy:
 kserve-delete:
 	kubectl delete -f kserve/manifests/kserve-inference.yaml
 	kubectl delete -f kserve/manifests/local-pvc.yaml
+	kubectl delete -f https://github.com/kserve/kserve/releases/download/v0.11.0/kserve.yaml
 
 kserve-clean:
 	kubectl delete service minio-service || true
 	kubectl delete deployment minio || true
 	kubectl delete inferenceservice churn-rf || true
+	kubectl delete -f https://github.com/kserve/kserve/releases/download/v0.11.0/kserve.yaml
 
 # === Clean ===
 clean: kserve-clean kserve-local-delete minio-delete kind-delete
