@@ -6,8 +6,4 @@ metadata:
 spec:
   predictor:
     sklearn:
-      storageUri: "pvc://model-pvc/sklearn-model"
-    resources:
-      limits:
-        cpu: 1
-        memory: 1Gi
+      storageUri: s3://mlflow/sklearn-model

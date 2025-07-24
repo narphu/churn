@@ -1,3 +1,4 @@
 ml/venv/
 ml/__pycache__
 mlartifacts/
+istio*/

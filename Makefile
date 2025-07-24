@@ -11,6 +11,19 @@ MLFLOW_CONTAINER=mlflow-server
 MLFLOW_PORT=5000
 MLFLOW_DATA=$(PWD)/mlflow
 
+
+# === MinIO Setup ===
+
+MINIO_ALIAS=minio
+MINIO_HOST=http://localhost:9000
+MINIO_ROOT_USER=admin
+MINIO_ROOT_PASSWORD=churn123
+MINIO_ACCESS_KEY=admin
+MINIO_SECRET_KEY=churn123
+MINIO_BUCKET=mlflow
+MODEL_PATH=models/randomforest
+
+
 # === Setup Environment ===
 ml-venv:
 	@echo "Creating ML virtual environment..."
@@ -81,28 +94,68 @@ kind-create:
 kind-delete:
 	kind delete cluster --name $(K8S_CLUSTER_NAME)
 
+
+# == Minio Delete ==
+minio-deploy: 
+	kubectl apply -f kserve/manifests/minio-deploy.yaml
+
+minio-delete:
+	kubectl delete -f kserve/manifests/minio-deploy.yaml
+
+minio-port-forward:
+	kubectl port-forward svc/minio-service 9000:9000
+
+minio-auth-setup:
+	kubectl create secret generic minio-creds \
+		--from-literal=AWS_ACCESS_KEY_ID=$(MINIO_ACCESS_KEY) \
+		--from-literal=AWS_SECRET_ACCESS_KEY=$(MINIO_SECRET_KEY)
+	kubectl patch configmap inferenceservice-config -n kserve \
+  		--type merge \
+  		-p '{"data": {"storageInitializer": "{\"s3\":{\"secretKeySecretName\":\"minio-creds\"}}"}}'
+
+
+# == MC bucket and model sync ==
+
+mc-alias:
+	mc alias set $(MINIO_ALIAS) $(MINIO_HOST) $(MINIO_ACCESS_KEY) $(MINIO_SECRET_KEY)
+
+mc-make-bucket:
+	mc mb --ignore-existing $(MINIO_ALIAS)/$(MINIO_BUCKET)
+
+mc-upload-model:
+	mc cp --recursive $(MODEL_PATH) $(MINIO_ALIAS)/$(MINIO_BUCKET)/sklearn-model
+
+minio-sync-model: mc-alias mc-make-bucket mc-upload-model
+
+# == kserve ==
+
 cert-manager-install: 
 	kubectl apply --validate=false -f https://github.com/jetstack/cert-manager/releases/download/v1.13.3/cert-manager.yaml
 	kubectl wait --for=condition=Available deployment --all -n cert-manager --timeout=90s
+
+istio-install:
+	curl -L https://istio.io/downloadIstio | ISTIO_VERSION=1.20.3 sh -
+	cd istio-1.20.3
+	export PATH=$PWD/bin:$PATH
+	istioctl install --set profile=demo -y
 
 kserve-install: cert-manager-install
 	kubectl apply -f https://github.com/kserve/kserve/releases/download/v0.11.0/kserve.yaml
 	kubectl wait --for=condition=Available deployment --all -n kserve --timeout=120s
 
 kserve-deploy:
+	kubectl apply -f kserve/manifests/local-pvc.yaml
 	kubectl apply -f kserve/manifests/kserve-inference.yaml
 
 kserve-delete:
 	kubectl delete -f kserve/manifests/kserve-inference.yaml
-
-kserve-local-deploy:
-	kubectl apply -f kserve/manifests/local-pvc.yaml
-	kubectl apply -f kserve/manifests/sklearn-local.yaml
-
-kserve-local-delete:
-	kubectl delete -f kserve/manifests/sklearn-local.yaml
 	kubectl delete -f kserve/manifests/local-pvc.yaml
 
+kserve-clean:
+	kubectl delete service minio-service || true
+	kubectl delete deployment minio || true
+	kubectl delete inferenceservice churn-rf || true
+
 # === Clean ===
-clean:
+clean: kserve-clean kserve-local-delete minio-delete kind-delete
 	rm -rf $(ML_VENV) __pycache__ */__pycache__
