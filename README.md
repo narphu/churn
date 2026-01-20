@@ -127,7 +127,7 @@ Located in `explain.py`:
 
 ## 📦 MLflow Usage
 
-- **Tracking Server**: Set up in `mlflow_server.py`  
+- **Tracking Server**: Dockerized in `mlflow/Dockerfile`  
 - **Model Logging**: During `train.py`, each run logs:  
   - Parameters, metrics  
   - `.pkl` model  
@@ -171,9 +171,9 @@ make train
 ```bash
 make explain
 ```
-🧾 5. Run MLflow Tracking Server
+🧾 5. Run MLflow Tracking Server (Docker)
 ```bash
-make mlflow-ui
+make mlflow-up
 ```
 📈 6. Promote Best Model
 ``` bash

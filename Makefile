@@ -49,10 +49,9 @@ train: ml-install
 promote:
 	. $(ML_VENV)/bin/activate && PYTHONPATH=$(ML_VENV) python $(ML_DIR)/evaluate_and_promote.py
 
-# === RUN MLflow UI ===
-mlflow-ui: ml-install
-	@echo  "Launching MLflow UI at http://localhost:5000 ..."
-	. $(ML_VENV)/bin/activate && mlflow ui --backend-store-uri sqlite:///mlflow/mlflow.db
+# === RUN MLflow UI (Docker) ===
+mlflow-ui: mlflow-up
+	@echo  "MLflow UI available at http://localhost:5000"
 
 .PHONY: mlflow-build mlflow-up mlflow-down mlflow-logs mlflow-uri
 
