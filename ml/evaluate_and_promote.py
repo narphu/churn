@@ -1,4 +1,6 @@
+
 # scripts/evaluate_and_promote.py
+import os
 import mlflow
 from mlflow.tracking import MlflowClient
 
@@ -6,7 +8,7 @@ MODEL_NAME = "ChurnPredictionRandomForest"
 METRIC = "accuracy"
 MIN_THRESHOLD = 0.84
 
-mlflow.set_tracking_uri("http://localhost:5000")
+mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000"))
 
 
 client = MlflowClient()
@@ -36,5 +38,4 @@ if accuracy >= MIN_THRESHOLD:
     )
 else:
     print("⚠️ Model does not meet accuracy threshold. Not promoted.")
-
 

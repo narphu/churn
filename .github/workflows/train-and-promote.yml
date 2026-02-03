@@ -12,6 +12,8 @@ on:
 jobs:
   train-and-promote:
     runs-on: ubuntu-latest
+    env:
+      MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI || 'file:./mlruns' }}
     steps:
       - uses: actions/checkout@v3
 
@@ -22,12 +24,13 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install -r requirements.txt
+          pip install -r ml/requirements.txt
 
       - name: Train model
         run: |
           make train
 
       - name: Promote model if best
+        if: ${{ startsWith(env.MLFLOW_TRACKING_URI, 'http') }}
         run: |
           make promote
