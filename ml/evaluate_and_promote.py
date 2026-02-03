@@ -12,14 +12,15 @@ mlflow.set_tracking_uri("http://localhost:5000")
 client = MlflowClient()
 
 
-# Get latest model in "None" stage
-latest = client.get_latest_versions(MODEL_NAME, stages=["None"])
-if not latest:
+# Get latest model version (by version number)
+versions = client.search_model_versions(f"name='{MODEL_NAME}'")
+if not versions:
     print("❌ No new models to promote.")
     exit(0)
 
-version = latest[0].version
-run_id = latest[0].run_id
+latest = max(versions, key=lambda v: int(v.version))
+version = latest.version
+run_id = latest.run_id
 
 # Fetch accuracy metric
 run = client.get_run(run_id)
@@ -28,13 +29,7 @@ accuracy = float(run.data.metrics.get(METRIC, 0))
 print(f"🔍 Model v{version} accuracy: {accuracy}")
 if accuracy >= MIN_THRESHOLD:
     print("✅ Promoting model to Production...")
-    client.transition_model_version_stage(
-        name=MODEL_NAME,
-        version=version,
-        stage="Production",
-        archive_existing_versions=True
-    )
+    client.set_registered_model_alias(MODEL_NAME, "production", version)
 else:
     print("⚠️ Model does not meet accuracy threshold. Not promoted.")
-
 
