@@ -16,4 +16,5 @@ spec:
   predictor:
     serviceAccountName: kserve-minio-sa
     sklearn:
+      runtimeVersion: "v0.11.0"
       storageUri: s3://mlflow/sklearn-model/randomforest
