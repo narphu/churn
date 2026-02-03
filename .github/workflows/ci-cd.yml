@@ -4,15 +4,40 @@ on: [push]
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      REGISTRY: ${{ secrets.REGISTRY }}
+      REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+      REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+      KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG_DATA }}
     steps:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Build and Push Docker
+      - name: Build Docker image
         run: |
-          docker build -t myregistry/churn-model:latest -f docker/Dockerfile .
-          docker push myregistry/churn-model:latest
+          docker build -t churn-api:latest -f api/Dockerfile ./api
+
+      - name: Log in to registry
+        if: ${{ env.REGISTRY && env.REGISTRY_USERNAME && env.REGISTRY_PASSWORD }}
+        run: |
+          echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" -u "$REGISTRY_USERNAME" --password-stdin
+
+      - name: Push Docker image
+        if: ${{ env.REGISTRY && env.REGISTRY_USERNAME && env.REGISTRY_PASSWORD }}
+        run: |
+          docker tag churn-api:latest "$REGISTRY/churn-api:latest"
+          docker push "$REGISTRY/churn-api:latest"
 
       - name: Apply KServe Manifests
+        if: ${{ env.KUBE_CONFIG_DATA }}
+        uses: azure/setup-kubectl@v4
+
+      - name: Configure kubeconfig
+        if: ${{ env.KUBE_CONFIG_DATA }}
         run: |
-          kubectl apply -f manifests/kserve-inference.yaml
+          echo "$KUBE_CONFIG_DATA" | base64 --decode > "$HOME/.kube/config"
+
+      - name: Deploy KServe
+        if: ${{ env.KUBE_CONFIG_DATA }}
+        run: |
+          kubectl apply -f kserve/manifests/kserve-inference.yaml
