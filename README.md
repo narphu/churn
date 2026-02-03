@@ -127,7 +127,7 @@ Located in `explain.py`:
 
 ## 📦 MLflow Usage
 
-- **Tracking Server**: Set up in `mlflow_server.py`  
+- **Tracking Server**: Dockerized in `mlflow/Dockerfile`  
 - **Model Logging**: During `train.py`, each run logs:  
   - Parameters, metrics  
   - `.pkl` model  
@@ -152,6 +152,26 @@ Uses MLflow model URI directly from registry
 
 Includes support for autoscaling, versioning, and canary rollouts
 
+### KServe Quickstart (Kind + MinIO)
+Prereqs: Docker Desktop, `kind`, `kubectl`, and MinIO client `mc`.
+
+```bash
+make kserve-up
+make kserve-predict
+```
+To tear it down:
+```bash
+make kserve-down
+```
+
+`make kserve-up` creates the cluster, installs Istio/Knative/KServe, deploys MinIO, syncs the model, and applies the InferenceService.
+
+`make kserve-predict` port-forwards the predictor pod and runs a sample inference:
+```json
+{"instances": [[114.74, 114.74, 1.0, 1.0]]}
+```
+Feature order: `["total_spent", "avg_order_value", "avg_review_score", "unique_products"]`.
+
 ## 🚀 Run the Project
 🔧 1. Install Requirements
 ```bash
@@ -171,9 +191,9 @@ make train
 ```bash
 make explain
 ```
-🧾 5. Run MLflow Tracking Server
+🧾 5. Run MLflow Tracking Server (Docker)
 ```bash
-make mlflow-ui
+make mlflow-up
 ```
 📈 6. Promote Best Model
 ``` bash
@@ -186,6 +206,11 @@ make start-api
 ☁️ 8. Deploy with KServe
 ```bash
 make deploy-kserve
+```
+Or use the quickstart:
+```bash
+make kserve-up
+make kserve-predict
 ```
 ## 🧪 CI/CD & Automation
 This project includes:

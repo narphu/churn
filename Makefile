@@ -49,10 +49,9 @@ train: ml-install
 promote:
 	. $(ML_VENV)/bin/activate && PYTHONPATH=$(ML_VENV) python $(ML_DIR)/evaluate_and_promote.py
 
-# === RUN MLflow UI ===
-mlflow-ui: ml-install
-	@echo  "Launching MLflow UI at http://localhost:5000 ..."
-	. $(ML_VENV)/bin/activate && mlflow ui --backend-store-uri sqlite:///mlflow/mlflow.db
+# === RUN MLflow UI (Docker) ===
+mlflow-ui: mlflow-up
+	@echo  "MLflow UI available at http://localhost:5000"
 
 .PHONY: mlflow-build mlflow-up mlflow-down mlflow-logs mlflow-uri
 
@@ -88,9 +87,12 @@ docker-compose-up:
 K8S_CLUSTER_NAME=mlops-kserve
 
 kind-create:
-	kind create cluster --name $(K8S_CLUSTER_NAME) --image kindest/node:v1.27.3
-	kubectl cluster-info --context kind-mlops-kserve
-
+	@if kind get clusters | grep -q "^$(K8S_CLUSTER_NAME)$$"; then \
+		echo "Kind cluster $(K8S_CLUSTER_NAME) already exists; skipping create."; \
+	else \
+		kind create cluster --name $(K8S_CLUSTER_NAME) --image kindest/node:v1.27.3; \
+	fi
+	kubectl cluster-info --context kind-$(K8S_CLUSTER_NAME)
 kind-delete:
 	kind delete cluster --name $(K8S_CLUSTER_NAME)
 
@@ -105,13 +107,20 @@ minio-delete:
 minio-port-forward:
 	kubectl port-forward svc/minio-service 9000:9000
 
+minio-port-forward-start:
+	@nohup kubectl port-forward svc/minio-service 9000:9000 > /tmp/minio-port-forward.log 2>&1 &
+
 minio-auth-setup:
 	kubectl create secret generic minio-creds \
 		--from-literal=AWS_ACCESS_KEY_ID=$(MINIO_ACCESS_KEY) \
-		--from-literal=AWS_SECRET_ACCESS_KEY=$(MINIO_SECRET_KEY)
+		--from-literal=AWS_SECRET_ACCESS_KEY=$(MINIO_SECRET_KEY) \
+		--from-literal=AWS_ENDPOINT_URL=http://minio-service.default.svc.cluster.local:9000 \
+		--from-literal=AWS_DEFAULT_REGION=us-east-1 \
+		-n default \
+		--dry-run=client -o yaml | kubectl apply -f -
 	kubectl patch configmap inferenceservice-config -n kserve \
   		--type merge \
-  		-p '{"data": {"storageInitializer": "{\"s3\":{\"secretKeySecretName\":\"minio-creds\"}}"}}'
+  		-p '{"data": {"credentials": "{\n  \"storageSpecSecretName\": \"storage-config\",\n  \"storageSecretNameAnnotation\": \"serving.kserve.io/storageSecretName\",\n  \"gcs\": {\n    \"gcsCredentialFileName\": \"gcloud-application-credentials.json\"\n  },\n  \"s3\": {\n    \"s3AccessKeyIDName\": \"AWS_ACCESS_KEY_ID\",\n    \"s3SecretAccessKeyName\": \"AWS_SECRET_ACCESS_KEY\",\n    \"s3Endpoint\": \"minio-service.default.svc.cluster.local:9000\",\n    \"s3UseHttps\": \"0\",\n    \"s3Region\": \"us-east-1\",\n    \"s3VerifySSL\": \"0\",\n    \"s3UseVirtualBucket\": \"0\",\n    \"s3UseAnonymousCredential\": \"0\",\n    \"s3CABundle\": \"\"\n  }\n}"}}'
 
 
 # == MC bucket and model sync ==
@@ -125,7 +134,13 @@ mc-make-bucket:
 mc-upload-model:
 	mc cp --recursive $(MODEL_PATH) $(MINIO_ALIAS)/$(MINIO_BUCKET)/sklearn-model
 
-minio-sync-model: mc-alias mc-make-bucket mc-upload-model
+model-prepare:
+	test -f $(MODEL_PATH)/model.joblib || cp $(MODEL_PATH)/churn_model.joblib $(MODEL_PATH)/model.joblib
+
+minio-clean-model:
+	mc rm --force $(MINIO_ALIAS)/$(MINIO_BUCKET)/sklearn-model/randomforest/churn_model.joblib || true
+
+minio-sync-model: minio-port-forward-start model-prepare mc-alias mc-make-bucket minio-clean-model mc-upload-model
 
 # == kserve ==
 
@@ -135,9 +150,7 @@ cert-manager-install:
 
 istio-install:
 	curl -L https://istio.io/downloadIstio | ISTIO_VERSION=1.20.3 sh -
-	cd istio-1.20.3
-	export PATH=$PWD/bin:$PATH
-	istioctl install --set profile=demo -y
+	./istio-1.20.3/bin/istioctl install --set profile=demo -y
 
 # Install Knative (CRDs + Core)
 knative-install:
@@ -170,3 +183,22 @@ kserve-clean:
 # === Clean ===
 clean: kserve-clean kserve-local-delete minio-delete kind-delete
 	rm -rf $(ML_VENV) __pycache__ */__pycache__
+
+# === KServe Quickstart ===
+kserve-up: kind-create istio-install knative-install kserve-install minio-deploy minio-auth-setup minio-sync-model kserve-deploy
+
+kserve-predict:
+	@set -e; \
+	kubectl wait --for=condition=Ready pod -n default -l serving.kserve.io/inferenceservice=churn-rf --timeout=180s; \
+	POD=$$(kubectl get pods -n default -l serving.kserve.io/inferenceservice=churn-rf -o jsonpath='{.items[0].metadata.name}'); \
+	if [ -z "$$POD" ]; then echo "No churn-rf pod found"; exit 1; fi; \
+	kubectl port-forward -n default pod/$$POD 8083:8080 > /tmp/churn-rf-port-forward.log 2>&1 & \
+	PF_PID=$$!; \
+	sleep 3; \
+	curl -sS http://localhost:8083/v1/models/churn-rf:predict \
+		-H "Content-Type: application/json" \
+		-d '{"instances": [[114.74, 114.74, 1.0, 1.0]]}'; \
+	echo; \
+	kill $$PF_PID
+
+kserve-down: kserve-clean minio-delete kind-delete

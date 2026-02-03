@@ -8,11 +8,7 @@ services:
     ports:
       - "5000:5000"
     volumes:
-      - ./mlflow/artifacts:/app/artifacts
-      - ./mlflow/mlruns:/app/mlruns
-    environment:
-      - MLFLOW_TRACKING_URI=http://0.0.0.0:5000
-    command: ["python", "mlflow_server.py"]
+      - ./mlflow:/mlflow
 
   api:
     build:
