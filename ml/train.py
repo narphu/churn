@@ -38,7 +38,8 @@ mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000"
 mlflow.set_experiment("churn-randomforest")
 
 # === Model Params ===
-model_params = {"n_estimators":100, "random_state":42, "class_weight":"balanced",  "features": ",".join(X.columns)}
+model_params = {"n_estimators": 100, "random_state": 42, "class_weight": "balanced"}
+feature_list = ",".join(X.columns)
 
 run_name = f"RF-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
 
@@ -55,6 +56,7 @@ with mlflow.start_run(run_name=run_name):
 
     # Log params & metrics
     mlflow.log_params(model_params)
+    mlflow.log_param("features", feature_list)
     mlflow.log_metrics({"accuracy": acc, "roc_auc": roc, "f1_score": f1})
     # print(df["churned"].value_counts())
 
