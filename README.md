@@ -4,9 +4,8 @@
 
 This project implements a **robust, production-ready MLOps pipeline** for customer churn prediction. It goes beyond just building a model — the full pipeline supports:
 
-- Data preprocessing and feature engineering  
-- Training multiple ML models with evaluation  
-- SHAP-based model explainability  
+- Data preprocessing  
+- Model training with evaluation  
 - MLflow for tracking, versioning, and promotion  
 - FastAPI-based local inference API  
 - KServe deployment for scalable inference on Kubernetes  
@@ -27,7 +26,6 @@ This pipeline demonstrates
 
 - End-to-end MLOps lifecycle  
 - Reproducible training and deployment  
-- Feature explainability  
 - Modern model serving (FastAPI, KServe)  
 
 ---
@@ -36,9 +34,8 @@ This pipeline demonstrates
 
 | Feature                            | Description                                                                 |
 |------------------------------------|-----------------------------------------------------------------------------|
-| ✅ Preprocessing & Feature Store   | Cleans raw transactional/user data, creates engineered features             |
-| 🤖 Multi-Model Training            | Supports models like XGBoost, Random Forest, Logistic Regression, etc.      |
-| 📊 SHAP Explainability            | Computes and visualizes SHAP values for interpretability                    |
+| ✅ Preprocessing                   | Cleans raw data for modeling                                                |
+| 🤖 Model Training                  | Trains a baseline Random Forest model                                       |
 | 📦 Model Packaging with MLflow     | Logs metrics, artifacts, and models for promotion                           |
 | 🚀 Model Registry & Promotion      | Models registered and promoted using MLflow CLI or UI                       |
 | ⚡ FastAPI Inference Server        | For local testing and integration tests                                     |
@@ -52,14 +49,12 @@ This pipeline demonstrates
 churn-prediction/
 │
 ├── data/ # Raw and cleaned datasets
-├── features/ # Feature engineering scripts
-├── models/ # ML models and explainers
+├── models/ # Trained model artifacts
+├── ml/ # Training, preprocessing, promotion
 ├── mlflow/ # MLflow tracking and registry setup
 ├── api/ # FastAPI server for local inference
-├── notebooks/ # Optional EDA or SHAP visualizations
 ├── kserve/ # KServe YAMLs or InferenceService specs
 ├── Makefile # Declarative entry points for common tasks
-├── requirements.txt # Python dependencies
 └── README.md
 
 
@@ -72,7 +67,7 @@ churn-prediction/
          └────┬───────┘
               ▼
      ┌────────────────────┐
-     │ Preprocessing + FE │  ← `features/engineering.py`
+     │ Preprocessing      │  ← `ml/preprocess.py`
      └────┬───────────────┘
           ▼
     ┌──────────────────────┐
@@ -80,13 +75,8 @@ churn-prediction/
     │ + Logging to MLflow │
     └────┬─────────────────┘
          ▼
-    ┌──────────────────────┐
-    │ SHAP Explainability │ ← explain.py
-    └────┬─────────────────┘
-         ▼
     ┌────────────────────────────┐
-    │ MLflow Registry │ ← make promote model=ModelName
-    │ - Staging/Production │
+    │ MLflow Registry │ ← make promote
     └────┬───────────────────────┘
             ▼
     ┌──────────────────────┐ ┌─────────────────────┐
@@ -95,33 +85,9 @@ churn-prediction/
 
 ---
 
-## 🧪 Key Models Used
+## 🧪 Key Model Used
 
-- **XGBoost** – High performance for tabular data  
 - **Random Forest** – Strong baseline with interpretability  
-- **Logistic Regression** – Good for calibration and linear separability  
-- (More can be added modularly)
-
----
-
-## 🧹 Preprocessing & Feature Engineering
-
-Located in `features/engineering.py`, this includes:
-
-- Handling missing values  
-- Encoding categorical features  
-- Deriving churn-relevant features like `recency_days`, `frequency`, `avg_order_value`, etc.  
-- Outputs a clean dataset ready for modeling (`data/processed/churn.csv`)
-
----
-
-## 🔍 SHAP Explainability
-
-Located in `explain.py`:
-
-- Uses TreeExplainer for tree-based models  
-- Saves summary plots and feature importance visuals  
-- Integrated with MLflow artifacts for UI inspection
 
 ---
 
@@ -131,8 +97,7 @@ Located in `explain.py`:
 - **Model Logging**: During `train.py`, each run logs:  
   - Parameters, metrics  
   - `.pkl` model  
-  - SHAP plots  
-- **Promotion**: Use `make promote model=ModelName` to move from `staging → production`
+- **Promotion**: Use `make promote` to set the production alias when it meets the threshold
 
 ---
 
@@ -173,37 +138,27 @@ make kserve-down
 Feature order: `["total_spent", "avg_order_value", "avg_review_score", "unique_products"]`.
 
 ## 🚀 Run the Project
-🔧 1. Install Requirements
-```bash
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-```
-⚙️ 2. Preprocess Data
+⚙️ 1. Preprocess Data
 ```bash
 make preprocess
 ```
-🎯 3. Train Models
+🎯 2. Train Model
 ```bash
 make train
 ```
-📊 4. Generate SHAP Explanations
-```bash
-make explain
-```
-🧾 5. Run MLflow Tracking Server (Docker)
+🧾 3. Run MLflow Tracking Server (Docker)
 ```bash
 make mlflow-up
 ```
-📈 6. Promote Best Model
-``` bash
-make promote model=xgboost
+📈 4. Promote Best Model
+```bash
+make promote
 ```
-⚡ 7. Serve with FastAPI
+⚡ 5. Serve with FastAPI
 ```bash
 make start-api
 ```
-☁️ 8. Deploy with KServe
+☁️ 6. Deploy with KServe
 ```bash
 make deploy-kserve
 ```

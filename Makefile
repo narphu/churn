@@ -201,4 +201,50 @@ kserve-predict:
 	echo; \
 	kill $$PF_PID
 
+kserve-predict-samples:
+	@set -e; \
+	kubectl wait --for=condition=Ready pod -n default -l serving.kserve.io/inferenceservice=churn-rf --timeout=180s; \
+	POD=$$(kubectl get pods -n default -l serving.kserve.io/inferenceservice=churn-rf -o jsonpath='{.items[0].metadata.name}'); \
+	if [ -z "$$POD" ]; then echo "No churn-rf pod found"; exit 1; fi; \
+	kubectl port-forward -n default pod/$$POD 8083:8080 > /tmp/churn-rf-port-forward.log 2>&1 & \
+	PF_PID=$$!; \
+	sleep 3; \
+	curl -sS http://localhost:8083/v1/models/churn-rf:predict \
+		-H "Content-Type: application/json" \
+		-d '{"instances": [[20.0, 20.0, 1.0, 1.0]]}'; \
+	echo; \
+	curl -sS http://localhost:8083/v1/models/churn-rf:predict \
+		-H "Content-Type: application/json" \
+		-d '{"instances": [[250.0, 50.0, 4.0, 3.0]]}'; \
+	echo; \
+	curl -sS http://localhost:8083/v1/models/churn-rf:predict \
+		-H "Content-Type: application/json" \
+		-d '{"instances": [[1200.0, 120.0, 5.0, 10.0]]}'; \
+	echo; \
+	curl -sS http://localhost:8083/v1/models/churn-rf:predict \
+		-H "Content-Type: application/json" \
+		-d '{"instances": [[45.0, 9.0, 2.0, 8.0]]}'; \
+	echo; \
+	curl -sS http://localhost:8083/v1/models/churn-rf:predict \
+		-H "Content-Type: application/json" \
+		-d '{"instances": [[180.0, 60.0, 1.5, 3.0]]}'; \
+	echo; \
+	kill $$PF_PID
+
+kserve-predict-sample-rows:
+	@set -e; \
+	kubectl wait --for=condition=Ready pod -n default -l serving.kserve.io/inferenceservice=churn-rf --timeout=180s; \
+	POD=$$(kubectl get pods -n default -l serving.kserve.io/inferenceservice=churn-rf -o jsonpath='{.items[0].metadata.name}'); \
+	if [ -z "$$POD" ]; then echo "No churn-rf pod found"; exit 1; fi; \
+	. ml/venv/bin/activate; \
+	python -c "import json, pandas as pd; df=pd.read_csv('data/churn_dataset.csv'); X=df.drop(columns=['customer_id','churned','recency_days','active_days','order_count']); X=X.select_dtypes(include=['number']); n=20 if len(X) > 20 else len(X); instances=X.sample(n=n, random_state=42).values.tolist(); print(json.dumps({'instances': instances}))" > /tmp/churn_instances.json; \
+	kubectl port-forward -n default pod/$$POD 8083:8080 > /tmp/churn-rf-port-forward.log 2>&1 & \
+	PF_PID=$$!; \
+	sleep 3; \
+	curl -sS http://localhost:8083/v1/models/churn-rf:predict \
+		-H "Content-Type: application/json" \
+		-d @/tmp/churn_instances.json; \
+	echo; \
+	kill $$PF_PID
+
 kserve-down: kserve-clean minio-delete kind-delete
