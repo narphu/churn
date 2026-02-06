@@ -91,6 +91,29 @@ churn-prediction/
 
 ---
 
+## 🧾 Training Params and Metrics (Plain English)
+
+In `ml/train.py`, `model_params` are the settings that tell the Random Forest model how to behave during training. Think of them as configuration knobs:
+
+- `n_estimators`: How many decision trees the forest builds. More trees usually improve stability but take longer to train.
+- `random_state`: A fixed seed so results are reproducible. Same data + same seed means the same model.
+- `class_weight: "balanced"`: Handles class imbalance. If churned vs. not-churned is skewed, this makes the model pay more attention to the minority class.
+
+These params do not change the data itself; they only change how the model learns from it.
+
+Metrics logged during training:
+
+- **ROC AUC**: Measures how well the model separates churn vs. non-churn across all possible probability thresholds.  
+  - 0.5 = random guessing  
+  - 1.0 = perfect separation  
+  - Useful when you care about ranking (who is more likely to churn) rather than a single cutoff.
+- **F1 score**: The harmonic mean of precision and recall for the positive class (churn).  
+  - Precision = of the ones we predicted as churn, how many actually churned?  
+  - Recall = of all actual churners, how many did we catch?  
+  - F1 balances both, useful when classes are imbalanced.
+
+---
+
 ## 📦 MLflow Usage
 
 - **Tracking Server**: Dockerized in `mlflow/Dockerfile`  
